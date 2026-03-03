@@ -1,0 +1,38 @@
+#inner-web-window {
+    position: fixed;
+    /* 1. 位置调整：高度占满，宽度 75% 且居中 */
+    top: 0;
+    left: 12.5%; /* (100% - 75%) / 2 */
+    width: 75%;
+    height: 100vh;
+    
+    /* 2. 视觉调整：白色实心，去掉圆角 */
+    background: #ffffff; 
+    border-radius: 0; 
+    
+    /* 3. 层级与交互：夹在 3D 层中间 */
+    z-index: 5; 
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 1.5s ease;
+    
+    /* 4. 关键：保留并加深内阴影，让肋骨看起来投射了阴影在网页边缘 */
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.15); 
+    
+    /* 5. 内部 iframe 适配：溢出隐藏，因为 iframe 自带滚动 */
+    overflow: hidden; 
+    padding: 0; /* 去掉 padding，让 Framer 网页铺满 */
+}
+
+/* 确保内部 iframe 完美填满容器 */
+#inner-web-window iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+}
+
+/* 隐藏滚动条（备用） */
+#inner-web-window::-webkit-scrollbar { 
+    display: none; 
+}

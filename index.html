@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>肋骨嵌合网页空间</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #f3cedb; overflow: hidden; }
+
+        /* 底层 3D：显示完整的肋骨（包含后背部分） */
+        #three-bg {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 1; 
+        }
+        /* 中间层：你的白色网页 */
+        #inner-web-window {
+            position: fixed;
+            top: 0; left: 15%; width: 70%; height: 100vh;
+            background: #ffffff;
+            z-index: 5; /* 夹在两个 3D 层中间 */
+            overflow-y: auto;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease;
+            box-shadow: 0 0 40px rgba(0,0,0,0.2);
+        }
+
+        /* 顶层 3D：只显示肋骨的前端尖刺部分 */
+        #three-fg {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 10; 
+            pointer-events: auto; /* 只有这一层负责接收点击 */
+        }
+
+        #inner-web-window::-webkit-scrollbar { display: none; }
+        .scroll-content { color: #000; padding: 100px 50px; font-family: sans-serif; height: 2000px; }
+    </style>
+</head>
+<body>
+    <div id="three-bg"></div>
+    <div id="inner-web-window">
+    <iframe 
+        src="https://flourished-reflect-206872-be4f8ff9c.framer.app" render="true"
+        style="width: 100%; height: 100%; border: none;"
+        title="Framer Content">
+    </iframe>
+</div>
+    <div id="three-fg"></div>
+
+    <script type="module" src="./src/ribcage-test1-three.js"></script>
+</body>
+</html>
