@@ -46,7 +46,7 @@ function init() {
     sceneFG.add(fillLight.clone());
 
     const loader = new GLTFLoader();
-    loader.load('/openribcage.glb', (gltf) => {
+    loader.load('./public/openribcage.glb', (gltf) => {
         ribcageModel = gltf.scene;
         animationsData = gltf.animations;
 
