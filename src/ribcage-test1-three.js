@@ -6,6 +6,14 @@ let isOpened = false;
 let animationsData = [];
 let initialY = 0;
 
+// 倒下物理
+let collapseActive = false;
+let collapseTime   = 0;
+const TILT_DURATION = 0.7;  // 倾斜阶段时长（秒）
+const TILT_ANGLE    = Math.PI * 0.55; // 最终倾斜角（略超 90°）
+const FALL_GRAVITY  = 4.5;  // 坠落加速度（world units/s²）
+let fallVY = 0;
+
 init();
 
 function init() {
@@ -82,6 +90,12 @@ function init() {
     });
 
     window.addEventListener('click', onDocumentClick);
+
+    window.addEventListener('ribcageCollapse', () => {
+        collapseActive = true;
+        collapseTime   = 0;
+        fallVY         = 0;
+    });
 }
 
 function onDocumentClick(event) {
@@ -121,8 +135,10 @@ function onDocumentClick(event) {
             const webWindow = document.getElementById('inner-web-window');
             if (webWindow) {
                 setTimeout(() =>{
-                webWindow.style.opacity = "1";
-                },1500);    
+                    webWindow.style.opacity = "1";
+                    // 通知 chaos 系统：页面已展开
+                    window.dispatchEvent(new CustomEvent('anatomeOpened'));
+                }, 1500);
                 webWindow.style.pointerEvents = "auto";
             }
 
@@ -143,16 +159,31 @@ function animate() {
     if (mixerFG) mixerFG.update(delta);
 
     if (ribcageModel && ribcageFG) {
-        const breathe = Math.sin(elapsedTime * 2) * 0.005;
-        
-        // 确保两个模型的 Y 轴位移绝对一致
-        ribcageModel.position.y = initialY + breathe;
-        ribcageFG.position.y = initialY + breathe;
+        if (collapseActive) {
+            collapseTime += delta;
 
-        // 确保旋转也一致
-        const shake = Math.sin(elapsedTime * 0.4) * 0.002;
-        ribcageModel.rotation.z = shake;
-        ribcageFG.rotation.z = shake;
+            // 1. 向后倒：绕 X 轴负方向旋转，easeInQuad 先慢后快
+            const t    = Math.min(collapseTime / TILT_DURATION, 1);
+            const tilt = -TILT_ANGLE * t * t;   // 负值 = 顶部向后倒
+            ribcageModel.rotation.x = tilt;
+            ribcageFG.rotation.x    = tilt;
+
+            // 2. 坠落：倾斜 0.2s 后加速下沉
+            if (collapseTime > 0.2) {
+                fallVY += FALL_GRAVITY * delta;
+                const newY = ribcageModel.position.y - fallVY * delta;
+                ribcageModel.position.y = newY;
+                ribcageFG.position.y    = newY;
+            }
+        } else {
+            const breathe = Math.sin(elapsedTime * 2) * 0.005;
+            ribcageModel.position.y = initialY + breathe;
+            ribcageFG.position.y    = initialY + breathe;
+
+            const shake = Math.sin(elapsedTime * 0.4) * 0.002;
+            ribcageModel.rotation.z = shake;
+            ribcageFG.rotation.z    = shake;
+        }
     }
 
     renderer.render(scene, camera);
