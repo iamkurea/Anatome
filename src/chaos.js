@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 
 // ============================================================
 // CONFIG
@@ -14,18 +16,27 @@ const R_X_3D        = 9.5;
 
 // 掉落文字内容
 const PRODUCT_TEXTS = [
-  'SPRING 2026', '¥3,800', 'NEW ARRIVAL', 'SOLD OUT',
-  '限定品', '¥12,000', 'LAST ONE', 'ANATOME',
-  '¥5,500', 'SALE', '春夏コレクション', '骨格標本',
-  'LIMITED', '¥8,900', 'COLLECTION', '2026 S/S',
+  'Anatome', 'A boutique for curious girls.', 'Praying Candle',
+  'Dreamy perfume', 'Blinkie Pouch', '40.00SGD', '25.00SGD',
 ];
 
-// 图片占位框尺寸 [w, h]
-const IMG_SIZES = [
-  [120, 160], [165, 120], [100, 135],
-  [185, 245], [88, 112], [205, 155],
-  [115, 148], [98, 128], [140, 180],
+// 掉落图片列表
+const IMG_FILES = [
+  '/blinkiebouch.png',
+  '/hands.png',
+  '/perrfume.png',
 ];
+
+// GLB 模型列表
+const GLB_FILES = [
+  '/barbie.glb',
+  '/organ1.glb',
+  '/organ2.glb',
+  '/organ3.glb',
+];
+
+// 预加载的 GLB 场景缓存
+const glbCache = {};
 
 // ============================================================
 // STATE
@@ -317,36 +328,45 @@ function startChaos() {
 // SPAWN ALL ITEMS  —— 在 0~5.5s 内随机错落出现
 // ============================================================
 function spawnAllItems() {
-  const WINDOW = 5500; // 总时间窗口 ms
+  const WINDOW = 5500;
+  const tasks  = [];
 
-  // 把所有 spawn 动作打乱顺序、随机延迟
-  const tasks = [];
-
-  IMG_SIZES.forEach(([w, h]) => {
-    tasks.push({ delay: Math.random() * WINDOW * 0.75,          fn: () => spawnImageBox(w, h) });
+  // 每张图片随机重复 2~3 次，尺寸略微随机
+  IMG_FILES.forEach((src) => {
+    const count = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < count; i++) {
+      const scale = 0.7 + Math.random() * 0.7;
+      const w = Math.round(160 * scale);
+      const h = Math.round(200 * scale);
+      tasks.push({ delay: Math.random() * WINDOW * 0.75, fn: () => spawnImageBox(src, w, h) });
+    }
   });
 
   PRODUCT_TEXTS.forEach((text) => {
-    tasks.push({ delay: Math.random() * WINDOW,                 fn: () => spawnText(text)     });
+    tasks.push({ delay: Math.random() * WINDOW, fn: () => spawnText(text) });
   });
 
-  // 按延迟排序后依次调度（保证视觉上是"一个一个掉"）
   tasks.sort((a, b) => a.delay - b.delay);
   tasks.forEach(({ delay, fn }) => setTimeout(fn, delay));
 
-  // 3D 几何体：独立随机延迟
+  // 3D GLB 模型
   initThreeJS();
-  for (let i = 0; i < 8; i++) {
-    const d = 200 + Math.random() * WINDOW;
-    setTimeout(() => spawnOneShape(i), d);
-  }
+  const loader = new GLTFLoader();
+  GLB_FILES.forEach((path) => {
+    loader.load(path, (gltf) => {
+      glbCache[path] = gltf.scene;
+    });
+    // 每个模型掉落 2 次，错开时间
+    for (let rep = 0; rep < 2; rep++) {
+      const d = 300 + Math.random() * WINDOW;
+      setTimeout(() => spawnOneShape(path), d);
+    }
+  });
 
-  // 所有物品落定后，触发肋骨倒下（WINDOW + 2.5s 缓冲）
   setTimeout(() => {
     window.dispatchEvent(new CustomEvent('ribcageCollapse'));
   }, WINDOW + 2500);
 
-  // 启动物理循环
   animRunning = true;
   lastTS = performance.now();
   requestAnimationFrame(physicsLoop);
@@ -355,31 +375,18 @@ function spawnAllItems() {
 // ============================================================
 // 2D IMAGE BOX
 // ============================================================
-function spawnImageBox(w, h) {
+function spawnImageBox(src, w, h) {
   const iL = window.innerWidth * 0.15;
   const iW = window.innerWidth * 0.70;
   const x  = iL + Math.random() * Math.max(0, iW - w);
 
-  // 随机给图片框一些颜色变化
-  const bgColors = ['#f0f0f0', '#fff', '#ffe8ef', '#e8fff9', '#fff8e0'];
-  const bg = bgColors[Math.floor(Math.random() * bgColors.length)];
-
   const div = mkEl('div', {
     style: `position:fixed;width:${w}px;height:${h}px;
             top:${-h - 12}px;left:${x}px;
-            background:${bg};border:1.5px solid #222;
+            border-radius:12px;
             pointer-events:none;overflow:hidden;
             transform-origin:center center;`,
-    innerHTML: `
-      <svg width="100%" height="${h - 22}" style="display:block;opacity:0.22">
-        <line x1="0" y1="0" x2="100%" y2="100%" stroke="#222" stroke-width="1.5"/>
-        <line x1="100%" y1="0" x2="0" y2="100%" stroke="#222" stroke-width="1.5"/>
-      </svg>
-      <div style="position:absolute;bottom:5px;left:7px;
-                  font:10px/1 monospace;color:#999;letter-spacing:0.04em;">
-        IMG ${String(Math.floor(Math.random() * 999)).padStart(3, '0')}
-      </div>
-    `,
+    innerHTML: `<img src="${src}" style="width:100%;height:100%;object-fit:cover;display:block;" draggable="false"/>`,
   });
   domLayer.appendChild(div);
 
@@ -408,9 +415,9 @@ function spawnText(text) {
   const styleVariant = Math.random();
   let color, bgStyle;
   if (styleVariant < 0.35) {
-    color   = '#fff'; bgStyle = `background:#000;padding:3px 8px;`;
+    color   = '#fff'; bgStyle = `background:#000;padding:3px 8px;border-radius:6px;`;
   } else if (styleVariant < 0.55) {
-    color   = '#000'; bgStyle = `background:#fff;padding:3px 8px;`;
+    color   = '#000'; bgStyle = `background:#fff;padding:3px 8px;border-radius:6px;`;
   } else {
     color   = '#fff'; bgStyle = '';
   }
@@ -523,48 +530,45 @@ function initThreeJS() {
 }
 
 // ============================================================
-// 3D SHAPES  —— 每次生成一个，由 spawnAllItems 控制调度时机
+// 3D SHAPES  —— 使用 GLB 模型，由 spawnAllItems 控制调度时机
 // ============================================================
-const GEO_LIST = [
-  () => new THREE.BoxGeometry(1.7, 1.7, 1.7),
-  () => new THREE.SphereGeometry(0.95, 18, 18),
-  () => new THREE.ConeGeometry(0.85, 1.9, 9),
-  () => new THREE.TorusGeometry(0.9, 0.32, 10, 26),
-  () => new THREE.CylinderGeometry(0.58, 0.58, 1.9, 11),
-  () => new THREE.OctahedronGeometry(1.15),
-  () => new THREE.TetrahedronGeometry(1.2),
-  () => new THREE.TorusKnotGeometry(0.6, 0.22, 64, 8),
-];
-
-const MAT_LIST = [
-  new THREE.MeshStandardMaterial({ color: 0xffffff }),
-  new THREE.MeshStandardMaterial({ color: 0x111111 }),
-  new THREE.MeshStandardMaterial({ color: 0xff0033 }),
-  new THREE.MeshStandardMaterial({ color: 0x00ffcc }),
-  new THREE.MeshStandardMaterial({ color: 0xffffff, wireframe: true }),
-  new THREE.MeshStandardMaterial({ color: 0xffe0ec }),
-];
-
-function spawnOneShape(i) {
+function spawnOneShape(path) {
   if (!threeScene) return;
-  const geo  = GEO_LIST[i % GEO_LIST.length]();
-  const mat  = MAT_LIST[Math.floor(Math.random() * MAT_LIST.length)];
-  const mesh = new THREE.Mesh(geo, mat);
 
-  mesh.position.set(
+  const cached = glbCache[path];
+  if (!cached) {
+    // 模型还未加载完，稍后重试
+    setTimeout(() => spawnOneShape(path), 300);
+    return;
+  }
+
+  // SkeletonUtils.clone 正确处理蒙皮网格（SkinnedMesh / Barbie 等）
+  const root = SkeletonUtils.clone(cached);
+
+  // 用原始缓存模型计算尺寸（clone 后蒙皮模型 bbox 可能为零）
+  const box = new THREE.Box3().setFromObject(cached);
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  const isBarbie = path.includes('barbie');
+  const targetSize = isBarbie
+    ? 8.0 + Math.random() * 1.5   // barbie 专用尺寸
+    : 4.0 + Math.random() * 1.5;  // 其他模型
+  root.scale.setScalar(targetSize / maxDim);
+
+  root.position.set(
     L_X_3D + Math.random() * (R_X_3D - L_X_3D),
     TOP_Y_3D + Math.random() * 3.5,
     (Math.random() - 0.5) * 2.5,
   );
-  mesh.rotation.set(
+  root.rotation.set(
     Math.random() * Math.PI * 2,
     Math.random() * Math.PI * 2,
     Math.random() * Math.PI * 2,
   );
 
-  threeScene.add(mesh);
+  threeScene.add(root);
   chaos3D.push({
-    mesh,
+    mesh: root,
     vx: (Math.random() - 0.5) * 2.8,
     vy: 0,
     ax: (Math.random() - 0.5) * 4.5,
@@ -629,18 +633,36 @@ window.addEventListener('resize', () => {
 buildUI();
 
 window.addEventListener('anatomeOpened', () => {
-  // 利用 scroll chaining：iframe 滚到底部后继续滚动，
-  // 浏览器会把 wheel 事件传递给父窗口，此时立刻显示按钮。
-  // fallback：30 秒后无论如何都显示。
-  const fallback = setTimeout(showButton, 30000);
+  // fallback：8 秒后无论如何都显示
+  const fallback = setTimeout(showButton, 8000);
+  let triggered = false;
 
-  function onScrolledToBottom(e) {
-    if (e.deltaY > 0) {   // 向下滚动 + iframe 已到底 = scroll chain 触发
-      clearTimeout(fallback);
-      showButton();
-      window.removeEventListener('wheel', onScrolledToBottom);
-    }
+  function trigger() {
+    if (triggered) return;
+    triggered = true;
+    clearTimeout(fallback);
+    showButton();
+    window.removeEventListener('wheel', onWheelWindow, { passive: true });
+    const iw = document.getElementById('inner-web-window');
+    if (iw) iw.removeEventListener('wheel', onWheelContainer, { passive: true });
   }
 
-  window.addEventListener('wheel', onScrolledToBottom, { passive: true });
+  let accDelta = 0;
+
+  // 方案1：scroll chaining 抵达 window（部分浏览器/设备有效）
+  function onWheelWindow(e) {
+    if (e.deltaY > 0) trigger();
+  }
+
+  // 方案2：监听容器本身的 wheel，累计向下滚动量
+  // Framer 某些情况下滚动会溢出到容器层
+  function onWheelContainer(e) {
+    if (e.deltaY <= 0) return;
+    accDelta += e.deltaY;
+    if (accDelta >= 300) trigger(); // 累计约 3 次正常滚动
+  }
+
+  window.addEventListener('wheel', onWheelWindow, { passive: true });
+  const iw = document.getElementById('inner-web-window');
+  if (iw) iw.addEventListener('wheel', onWheelContainer, { passive: true });
 });
