@@ -20,19 +20,21 @@ const PRODUCT_TEXTS = [
   'Dreamy perfume', 'Blinkie Pouch', '40.00SGD', '25.00SGD',
 ];
 
+const BASE = import.meta.env.BASE_URL;
+
 // 掉落图片列表
 const IMG_FILES = [
-  '/blinkiebouch.png',
-  '/hands.png',
-  '/perrfume.png',
+  BASE + 'blinkiebouch.png',
+  BASE + 'hands.png',
+  BASE + 'perrfume.png',
 ];
 
 // GLB 模型列表
 const GLB_FILES = [
-  '/barbie.glb',
-  '/organ1.glb',
-  '/organ2.glb',
-  '/organ3.glb',
+  BASE + 'barbie.glb',
+  BASE + 'organ1.glb',
+  BASE + 'organ2.glb',
+  BASE + 'organ3.glb',
 ];
 
 // 预加载的 GLB 场景缓存
